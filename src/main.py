@@ -24,6 +24,7 @@ ERROR_CSS = {
     "align-items": "center",
     "radius": "3px",
 }
+REGISTER_BUTTON_STR = "登録"
 EDIT_BUTTON_STR = "編集"
 DELETE_BUTTON_STR = "削除"
 JST_TZINFO = ZoneInfo("Asia/Tokyo")
@@ -63,7 +64,6 @@ class TodoTask:
         self.note = note
 
 
-@st.cache_data
 def fetch_data() -> list[TodoTask]:
     """タスク一覧を取得
 
@@ -85,6 +85,22 @@ def fetch_data() -> list[TodoTask]:
         "",
     )
     return [task_1, task_2]
+
+
+def calculate_max_task_id(tasks: list[TodoTask], current_max_task_id: int = 1) -> int:
+    """最大タスクIDを取得
+
+    Args:
+        tasks (list[TodoTask]): タスク一覧
+        max_task_id (int): 現在の最大タスクID
+
+    Returns:
+        int: _description_
+    """
+    if not tasks:
+        return 1
+
+    return max([t.task_id for t in tasks if t.task_id] + [current_max_task_id])
 
 
 def create_data_frame(tasks: list[TodoTask]) -> dict[str, Any]:
@@ -111,7 +127,9 @@ def create_data_frame(tasks: list[TodoTask]) -> dict[str, Any]:
         data[TaskFrameColumn.STATUS.value].append(
             task.status.value if task.status else ""
         )
-        data[TaskFrameColumn.EDIT.value].append(EDIT_BUTTON_STR)
+        data[TaskFrameColumn.EDIT.value].append(
+            EDIT_BUTTON_STR if task.task_id else REGISTER_BUTTON_STR
+        )
         data[TaskFrameColumn.DELETE.value].append(DELETE_BUTTON_STR)
 
     return data
@@ -151,7 +169,9 @@ def render_edit_dialog(tasks: list[TodoTask], row_index: int):
         update_button, cancel_button = st.columns(2)
         # 更新時のイベント
         with update_button:
-            if st.form_submit_button("更新", width="stretch"):
+            if st.form_submit_button(
+                "更新" if task.task_id else REGISTER_BUTTON_STR, width="stretch"
+            ):
                 if not label:
                     label_error.write(
                         create_error_tag_frame().format(
@@ -160,13 +180,19 @@ def render_edit_dialog(tasks: list[TodoTask], row_index: int):
                         unsafe_allow_html=True,
                     )
                 else:
-                    task.task_id = (
-                        task.task_id
-                        if task.task_id
-                        else max([t.task_id for t in st.session_state.tasks]) + 1
-                    )
+                    if not task.task_id:
+                        task.task_id = (
+                            calculate_max_task_id(
+                                st.session_state.tasks, st.session_state.max_task_id
+                            )
+                            + 1
+                        )
+                        st.session_state.max_task_id = task.task_id
+
                     task.label = label
-                    task.period = datetime.combine(input_date, input_time)
+                    task.period = datetime.combine(
+                        input_date, input_time, tzinfo=JST_TZINFO
+                    )
                     task.status = input_status
                     task.note = input_note
                     st.rerun()
@@ -201,15 +227,17 @@ def render_delete_dialog(tasks: list[TodoTask], row_index: int):
                 st.rerun()
 
 
-def handle_action():
+def edit_action():
+    """編集ボタン押下時のイベント"""
     click = st.session_state.edit_buttons
     render_edit_dialog(st.session_state.tasks, click["row"])
 
 
 def delete_action():
+    """削除ボタン押下時のイベント"""
     click = st.session_state.delete_buttons
     row_index = click["row"]
-    if not row_index:
+    if st.session_state.tasks[row_index].task_id:
         render_delete_dialog(st.session_state.tasks, row_index)
     else:
         del st.session_state.tasks[row_index]
@@ -254,12 +282,12 @@ def render():
         pd.DataFrame(create_data_frame(st.session_state.tasks)),
         column_config={
             TaskFrameColumn.EDIT.value: st.column_config.ButtonColumn(
-                "編集",
-                on_click=handle_action,
+                "",
+                on_click=edit_action,
                 key="edit_buttons",
             ),
             TaskFrameColumn.DELETE.value: st.column_config.ButtonColumn(
-                "削除",
+                "",
                 on_click=delete_action,
                 key="delete_buttons",
             ),
@@ -272,6 +300,7 @@ def main():
     # データ取得
     if "tasks" not in st.session_state:
         st.session_state.tasks = fetch_data()
+        st.session_state.max_task_id = calculate_max_task_id(st.session_state.tasks)
 
     # 画面描画
     render()
