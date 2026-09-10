@@ -5,7 +5,9 @@
         "context": "../"
     },
     "postStartCommand": "mkdir -p ~/.streamlit && echo '[general]\nemail = \"\"' > ~/.streamlit/credentials.toml && streamlit run src/main.py --server.port 8501 --server.address 0.0.0.0",
-    "forwardPorts": [8501],
+    "forwardPorts": [
+        8501
+    ],
     "customizations": {
         "vscode": {
             "settings": {},
@@ -16,6 +18,12 @@
                 "ms-azuretools.vscode-containers",
                 "njpwerner.autodocstring"
             ]
+        }
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+            "version": "latest",
+            "moby": false
         }
     }
 }
