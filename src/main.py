@@ -92,10 +92,10 @@ def calculate_max_task_id(tasks: list[TodoTask], current_max_task_id: int = 1) -
 
     Args:
         tasks (list[TodoTask]): タスク一覧
-        max_task_id (int): 現在の最大タスクID
+        current_max_task_id (int): 現在の最大タスクID
 
     Returns:
-        int: _description_
+        int: 最大タスクID
     """
     if not tasks:
         return 1
@@ -103,16 +103,16 @@ def calculate_max_task_id(tasks: list[TodoTask], current_max_task_id: int = 1) -
     return max([t.task_id for t in tasks if t.task_id] + [current_max_task_id])
 
 
-def create_data_frame(tasks: list[TodoTask]) -> dict[str, Any]:
+def create_data_frame(tasks: list[TodoTask]) -> dict[str, list[Any]]:
     """データフレーム辞書作成
 
     Args:
         tasks (list[TodoTask]): タスク一覧
 
     Returns:
-        dict[str, Any]: _description_
+        dict[str, Any]: データフレーム辞書
     """
-    data = {
+    data: dict[str, list[Any]] = {
         TaskFrameColumn.LABEL.value: [],
         TaskFrameColumn.PERIOD.value: [],
         TaskFrameColumn.STATUS.value: [],
@@ -260,9 +260,9 @@ def create_status_selectbox(status: TaskStatus | None) -> TaskStatus:
         (i for i, s in enumerate(list(TaskStatus)) if s.value == render_status(status)),
         0,
     )
-    input_status = st.selectbox(
+    input_status: TaskStatus = st.selectbox(
         "ステータス",
-        options=[s for s in TaskStatus],
+        options=list(TaskStatus),
         index=status_index,
         format_func=render_status,
     )
