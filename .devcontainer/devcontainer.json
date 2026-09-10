@@ -1,7 +1,10 @@
 {
     "name": "My Dev Container",
-    "image": "test-app:latest",
-    "postStartCommand": "streamlit run src/main.py --server.port 8501 --server.address 0.0.0.0",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": "../"
+    },
+    "postStartCommand": "mkdir -p ~/.streamlit && echo '[general]\nemail = \"\"' > ~/.streamlit/credentials.toml && streamlit run src/main.py --server.port 8501 --server.address 0.0.0.0",
     "forwardPorts": [8501],
     "customizations": {
         "vscode": {
