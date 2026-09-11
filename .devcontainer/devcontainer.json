@@ -1,10 +1,8 @@
 {
     "name": "My Dev Container",
-    "build": {
-        "dockerfile": "Dockerfile",
-        "context": "../",
-        "target": "development"
-    },
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "python-dev",
+    "workspaceFolder": "/app",
     "postStartCommand": "mkdir -p ~/.streamlit && echo '[general]\nemail = \"\"' > ~/.streamlit/credentials.toml && streamlit run src/main.py --server.port 8501 --server.address 0.0.0.0",
     "forwardPorts": [
         8501

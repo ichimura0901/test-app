@@ -1,11 +1,14 @@
 from copy import deepcopy
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Self
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
+
+import repository
+from database import DatabaseManager as DbManager
 
 
 class TaskFrameColumn(Enum):
@@ -23,9 +26,21 @@ JST_TZINFO = ZoneInfo("Asia/Tokyo")
 
 
 class TaskStatus(Enum):
-    PENDING = "未対応"
-    INPROGRESS = "対応中"
-    COMPLETE = "完了"
+    PENDING = (1, "未対応")
+    INPROGRESS = (2, "対応中")
+    COMPLETE = (3, "完了")
+
+    def __init__(self, code: int, label: str):
+        self.code = code
+        self.label = label
+
+    @classmethod
+    def get_by_code(cls, code: int) -> Self | None:
+        """codeから一致するEnumオブジェクトを返す（見つからない場合はNone）"""
+        for member in cls:
+            if member.code == code:
+                return member
+        return None
 
 
 class Operation(Enum):
@@ -47,6 +62,15 @@ class TodoTask:
         self.period = period
         self.status = status
         self.note = note
+
+    def to_json(self):
+        return {
+            "task_id": self.task_id,
+            "label": self.label,
+            "period": self.period,
+            "status": self.status,
+            "note": self.note,
+        }
 
 
 def get_task_by_index(row_index: int) -> TodoTask:
@@ -108,27 +132,41 @@ def init_schedule_operation_index() -> None:
     st.session_state.operation = None
 
 
-def fetch_data() -> list[TodoTask]:
+@st.cache_resource
+def connect_db() -> DbManager:
+    """DB接続
+
+    Returns:
+        DbManager: DBクライアント
+    """
+    client = DbManager()
+    client.connect()
+    return client
+
+
+def fetch_data(client: DbManager) -> list[TodoTask]:
     """タスク一覧を取得
+    Args:
+        client (DbManager): DBクライアント
 
     Returns:
         list[TodoTask]: タスク一覧
     """
-    task_1 = TodoTask(
-        1,
-        "個人目標の座学",
-        datetime(2026, 10, 1, 15, 30, 0, tzinfo=JST_TZINFO),
-        TaskStatus.INPROGRESS,
-        "",
-    )
-    task_2 = TodoTask(
-        2,
-        "掃除",
-        datetime(2026, 10, 2, 12, 45, 0, tzinfo=JST_TZINFO),
-        TaskStatus.PENDING,
-        "",
-    )
-    return [task_1, task_2]
+
+    stored_tasks = repository.get_task(client)
+
+    tasks: list[TodoTask] = []
+    for task in stored_tasks:
+        tasks.append(
+            TodoTask(
+                task["id"],
+                task["label"],
+                task["period"],
+                TaskStatus.get_by_code(task["status"]),
+                task["note"],
+            )
+        )
+    return tasks
 
 
 def calculate_max_task_id(tasks: list[TodoTask], current_max_task_id: int = 1) -> int:
@@ -176,7 +214,7 @@ def create_data_frame(tasks: list[TodoTask]) -> dict[str, list[Any]]:
             task.period.strftime("%Y/%m/%d %H:%M") if task.period else ""
         )
         data[TaskFrameColumn.STATUS.value].append(
-            task.status.value if task.status else ""
+            task.status.label if task.status else ""
         )
         data[TaskFrameColumn.EDIT.value].append(
             EDIT_BUTTON_STR if task.task_id else REGISTER_BUTTON_STR
@@ -187,7 +225,7 @@ def create_data_frame(tasks: list[TodoTask]) -> dict[str, list[Any]]:
 
 
 @st.dialog("編集")
-def render_edit_dialog(row_index: int | None = None):
+def render_edit_dialog(client: DbManager, row_index: int | None = None):
     """編集ダイアログ描画
 
     Args:
@@ -241,6 +279,7 @@ def render_edit_dialog(row_index: int | None = None):
                             + 1
                         )
                         append_task(task)
+                        repository.insert_task(client, task.to_json())
                         set_max_task_id(task.task_id)
                     else:
                         update_task(task)
@@ -302,29 +341,29 @@ def create_status_selectbox(status: TaskStatus | None) -> TaskStatus:
     """
 
     def render_status(status: TaskStatus | None):
-        return status.value if status else None
+        return status.code if status else None
 
     status_index = next(
-        (i for i, s in enumerate(list(TaskStatus)) if s.value == render_status(status)),
+        (i for i, s in enumerate(list(TaskStatus)) if s.code == render_status(status)),
         0,
     )
     input_status: TaskStatus = st.selectbox(
         "ステータス",
         options=list(TaskStatus),
         index=status_index,
-        format_func=render_status,
+        format_func=lambda t: t.label,
     )
 
     return input_status
 
 
-def render():
+def render(client: DbManager):
     """画面の描画"""
     st.title("TODOアプリ")
     _, col2 = st.columns([4, 1])
     with col2:
         if st.button("タスク追加", key="add_button", width="stretch", type="primary"):
-            render_edit_dialog()
+            render_edit_dialog(client)
 
     st.dataframe(
         pd.DataFrame(create_data_frame(st.session_state.tasks)),
@@ -346,20 +385,23 @@ def render():
     row_index = st.session_state.operation_row_index
     if row_index is not None:
         if st.session_state.operation.value == Operation.EDIT.value:
-            render_edit_dialog(row_index)
+            render_edit_dialog(client, row_index)
         elif st.session_state.operation.value == Operation.DELETE.value:
             render_delete_dialog(row_index)
 
 
 def main():
+    # DB接続
+    client = connect_db()
+
     # データ取得
     if "tasks" not in st.session_state:
-        st.session_state.tasks = fetch_data()
+        st.session_state.tasks = fetch_data(client)
         set_max_task_id(calculate_max_task_id(st.session_state.tasks))
         init_schedule_operation_index()
 
     # 画面描画
-    render()
+    render(client)
 
 
 main()
