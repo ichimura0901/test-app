@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -15,37 +16,21 @@ class TaskFrameColumn(Enum):
     DELETE = "削除"
 
 
-ERROR_CSS = {
-    "padding": "5px",
-    "color": "red",
-    "background-color": "#fff0f5",
-    "height": "{height}px",
-    "font-size": "13px",
-    "align-items": "center",
-    "radius": "3px",
-}
 REGISTER_BUTTON_STR = "登録"
 EDIT_BUTTON_STR = "編集"
 DELETE_BUTTON_STR = "削除"
 JST_TZINFO = ZoneInfo("Asia/Tokyo")
 
 
-def create_error_tag_frame():
-    return '<div style="' + create_css_str(ERROR_CSS) + '">{text}</div>'
-
-
-def create_css_str(css_dict: dict[str, str]):
-    css_str = ""
-
-    for key, value in css_dict.items():
-        css_str += f"{key}:{value};"
-    return css_str
-
-
 class TaskStatus(Enum):
     PENDING = "未対応"
     INPROGRESS = "対応中"
     COMPLETE = "完了"
+
+
+class Operation(Enum):
+    EDIT = 1
+    DELETE = 2
 
 
 class TodoTask:
@@ -62,6 +47,65 @@ class TodoTask:
         self.period = period
         self.status = status
         self.note = note
+
+
+def get_task_by_index(row_index: int) -> TodoTask:
+    """タスクの複製を取得
+
+    Args:
+        row_index (int): 行番号
+
+    Returns:
+        TodoTask: タスク
+    """
+    return deepcopy(st.session_state.tasks[row_index])
+
+
+def append_task(task_for_add: TodoTask):
+    """タスクを追加
+
+    Args:
+        task_for_add (TodoTask): 追加用タスク
+    """
+    st.session_state.tasks.append(task_for_add)
+
+
+def update_task(task_for_update: TodoTask) -> None:
+    """タスクを更新
+
+    Args:
+        task_for_update (TodoTask): 更新用タスク
+    """
+    for index, task in enumerate(st.session_state.tasks):
+        if task.task_id == task_for_update.task_id:
+            st.session_state.tasks[index] = task_for_update
+            break
+
+
+def delete_task_by_index(row_index: int) -> TodoTask:
+    """タスクを削除
+
+    Args:
+        row_index (int): 行番号
+    """
+    del st.session_state.tasks[row_index]
+
+
+def set_schedule_operation(row_index: int | None, operaion: Operation | None) -> None:
+    """操作予定の行番号を設定
+
+    Args:
+        row_index (int | None): 行番号
+        operaion (Operation | None): 操作
+    """
+    st.session_state.operation_row_index = row_index
+    st.session_state.operation = operaion
+
+
+def init_schedule_operation_index() -> None:
+    """操作予定の行番号をリセット"""
+    st.session_state.operation_row_index = None
+    st.session_state.operation = None
 
 
 def fetch_data() -> list[TodoTask]:
@@ -88,7 +132,7 @@ def fetch_data() -> list[TodoTask]:
 
 
 def calculate_max_task_id(tasks: list[TodoTask], current_max_task_id: int = 1) -> int:
-    """最大タスクIDを取得
+    """最大タスクIDを計算
 
     Args:
         tasks (list[TodoTask]): タスク一覧
@@ -97,10 +141,17 @@ def calculate_max_task_id(tasks: list[TodoTask], current_max_task_id: int = 1) -
     Returns:
         int: 最大タスクID
     """
-    if not tasks:
-        return 1
 
     return max([t.task_id for t in tasks if t.task_id] + [current_max_task_id])
+
+
+def set_max_task_id(max_task_id: int) -> None:
+    """最大タスクIDを設定
+
+    Args:
+        max_task_id (int): 最大タスクID
+    """
+    st.session_state.max_task_id = max_task_id
 
 
 def create_data_frame(tasks: list[TodoTask]) -> dict[str, list[Any]]:
@@ -136,15 +187,16 @@ def create_data_frame(tasks: list[TodoTask]) -> dict[str, list[Any]]:
 
 
 @st.dialog("編集")
-def render_edit_dialog(tasks: list[TodoTask], row_index: int):
+def render_edit_dialog(row_index: int | None = None):
     """編集ダイアログ描画
 
     Args:
-        tasks (list[TodoTask]): タスク一覧
         row_index (int): 行のインデックス
     """
-    # 編集対象のダイアログを取得
-    task = tasks[row_index]
+    is_new = bool(row_index is None)
+    task = (
+        TodoTask(None, "", None, None, "") if is_new else get_task_by_index(row_index)
+    )
 
     with st.form("detail_form"):
         label_error = st.empty()
@@ -173,42 +225,40 @@ def render_edit_dialog(tasks: list[TodoTask], row_index: int):
                 "更新" if task.task_id else REGISTER_BUTTON_STR, width="stretch"
             ):
                 if not label:
-                    label_error.write(
-                        create_error_tag_frame().format(
-                            text="タスク名は必須です", height=30
-                        ),
-                        unsafe_allow_html=True,
-                    )
+                    label_error.error("タスク名は必須です")
                 else:
-                    if not task.task_id:
-                        task.task_id = (
-                            calculate_max_task_id(
-                                st.session_state.tasks, st.session_state.max_task_id
-                            )
-                            + 1
-                        )
-                        st.session_state.max_task_id = task.task_id
-
                     task.label = label
                     task.period = datetime.combine(
                         input_date, input_time, tzinfo=JST_TZINFO
                     )
                     task.status = input_status
                     task.note = input_note
+                    if is_new:
+                        task.task_id = (
+                            calculate_max_task_id(
+                                st.session_state.tasks, st.session_state.max_task_id
+                            )
+                            + 1
+                        )
+                        append_task(task)
+                        set_max_task_id(task.task_id)
+                    else:
+                        update_task(task)
+                    init_schedule_operation_index()
                     st.rerun()
 
         # キャンセル時のイベント
         with cancel_button:
             if st.form_submit_button("キャンセル", width="stretch"):
+                init_schedule_operation_index()
                 st.rerun()
 
 
 @st.dialog("削除")
-def render_delete_dialog(tasks: list[TodoTask], row_index: int):
+def render_delete_dialog(row_index: int):
     """削除ダイアログ描画
 
     Args:
-        tasks (list[TodoTask]): タスク一覧
         row_index (int): 行のインデックス
     """
     with st.form("delete_form"):
@@ -218,29 +268,27 @@ def render_delete_dialog(tasks: list[TodoTask], row_index: int):
         # 削除時のイベント
         with ok_button:
             if st.form_submit_button("OK", width="stretch"):
-                del tasks[row_index]
+                delete_task_by_index(row_index)
+                init_schedule_operation_index()
                 st.rerun()
 
         # キャンセル時のイベント
         with cancel_button:
             if st.form_submit_button("キャンセル", width="stretch"):
+                init_schedule_operation_index()
                 st.rerun()
 
 
 def edit_action():
     """編集ボタン押下時のイベント"""
     click = st.session_state.edit_buttons
-    render_edit_dialog(st.session_state.tasks, click["row"])
+    set_schedule_operation(click["row"], Operation.EDIT)
 
 
 def delete_action():
     """削除ボタン押下時のイベント"""
     click = st.session_state.delete_buttons
-    row_index = click["row"]
-    if st.session_state.tasks[row_index].task_id:
-        render_delete_dialog(st.session_state.tasks, row_index)
-    else:
-        del st.session_state.tasks[row_index]
+    set_schedule_operation(click["row"], Operation.DELETE)
 
 
 def create_status_selectbox(status: TaskStatus | None) -> TaskStatus:
@@ -276,7 +324,7 @@ def render():
     _, col2 = st.columns([4, 1])
     with col2:
         if st.button("タスク追加", key="add_button", width="stretch", type="primary"):
-            st.session_state.tasks.append(TodoTask(None, "", None, None, ""))
+            render_edit_dialog()
 
     st.dataframe(
         pd.DataFrame(create_data_frame(st.session_state.tasks)),
@@ -295,12 +343,20 @@ def render():
         hide_index=True,
     )
 
+    row_index = st.session_state.operation_row_index
+    if row_index is not None:
+        if st.session_state.operation.value == Operation.EDIT.value:
+            render_edit_dialog(row_index)
+        elif st.session_state.operation.value == Operation.DELETE.value:
+            render_delete_dialog(row_index)
+
 
 def main():
     # データ取得
     if "tasks" not in st.session_state:
         st.session_state.tasks = fetch_data()
-        st.session_state.max_task_id = calculate_max_task_id(st.session_state.tasks)
+        set_max_task_id(calculate_max_task_id(st.session_state.tasks))
+        init_schedule_operation_index()
 
     # 画面描画
     render()
