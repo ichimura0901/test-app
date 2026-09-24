@@ -20,6 +20,7 @@ class TaskFrameColumn(Enum):
 
 
 REGISTER_BUTTON_STR = "登録"
+UPDATE_BUTTON_STR = "更新"
 EDIT_BUTTON_STR = "編集"
 DELETE_BUTTON_STR = "削除"
 JST_TZINFO = ZoneInfo("Asia/Tokyo")
@@ -47,6 +48,28 @@ class TaskStatus(Enum):
 class Operation(Enum):
     EDIT = 1
     DELETE = 2
+
+
+class TodoTaskCreate:
+    def __init__(
+        self,
+        label: str,
+        period: datetime,
+        status: TaskStatus,
+        note: str,
+    ):
+        self.label = label
+        self.period = period
+        self.status = status
+        self.note = note
+
+    def to_json(self):
+        return {
+            "label": self.label,
+            "period": self.period,
+            "status": self.status.code,
+            "note": self.note,
+        }
 
 
 class TodoTask:
@@ -170,29 +193,6 @@ def fetch_data(client: DbManager) -> list[TodoTask]:
     return tasks
 
 
-def calculate_max_task_id(tasks: list[TodoTask], current_max_task_id: int = 1) -> int:
-    """最大タスクIDを計算
-
-    Args:
-        tasks (list[TodoTask]): タスク一覧
-        current_max_task_id (int): 現在の最大タスクID
-
-    Returns:
-        int: 最大タスクID
-    """
-
-    return max([t.task_id for t in tasks if t.task_id] + [current_max_task_id])
-
-
-def set_max_task_id(max_task_id: int) -> None:
-    """最大タスクIDを設定
-
-    Args:
-        max_task_id (int): 最大タスクID
-    """
-    st.session_state.max_task_id = max_task_id
-
-
 def create_data_frame(tasks: list[TodoTask]) -> dict[str, list[Any]]:
     """データフレーム辞書作成
 
@@ -236,17 +236,14 @@ def render_edit_dialog(client: DbManager, row_index: int | None = None):
         client (DbManager): DBクライアント
         row_index (int): 行のインデックス
     """
-    is_new = bool(row_index is None)
-    if is_new:
-        task = TodoTask(
-            calculate_max_task_id(st.session_state.tasks, st.session_state.max_task_id)
-            + 1,
+    if row_index is None:
+        task = TodoTaskCreate(
             "",
             datetime.now(timezone.utc),
             TaskStatus.PENDING,
             "",
         )
-    elif row_index:
+    else:
         task = get_task_by_index(row_index)
 
     with st.form("detail_form"):
@@ -277,7 +274,10 @@ def render_edit_dialog(client: DbManager, row_index: int | None = None):
         # 更新時のイベント
         with update_button:
             if st.form_submit_button(
-                "更新" if task.task_id else REGISTER_BUTTON_STR, width="stretch"
+                UPDATE_BUTTON_STR
+                if isinstance(task, TodoTask)
+                else REGISTER_BUTTON_STR,
+                width="stretch",
             ):
                 if not label:
                     label_error.error("タスク名は必須です")
@@ -288,17 +288,18 @@ def render_edit_dialog(client: DbManager, row_index: int | None = None):
                     )
                     task.status = input_status
                     task.note = input_note
-                    if is_new:
-                        task.task_id = (
-                            calculate_max_task_id(
-                                st.session_state.tasks, st.session_state.max_task_id
-                            )
-                            + 1
-                        )
+                    if isinstance(task, TodoTaskCreate):
                         result = repository.insert_task(client, task.to_json())
                         if result:
-                            append_task(task)
-                            set_max_task_id(task.task_id)
+                            append_task(
+                                TodoTask(
+                                    result[0]["id"],
+                                    task.label,
+                                    task.period,
+                                    task.status,
+                                    task.note,
+                                )
+                            )
                     else:
                         result = repository.update_task(
                             client, task.to_json(), task.task_id
@@ -426,13 +427,12 @@ def main():
         # データ取得
         if "tasks" not in st.session_state:
             st.session_state.tasks = fetch_data(client)
-            set_max_task_id(calculate_max_task_id(st.session_state.tasks))
             init_schedule_operation_index()
 
         # 画面描画
         render(client)
     except Exception:
-        st.write("エラー")
+        st.error("エラー")
 
 
 main()

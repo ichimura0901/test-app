@@ -27,7 +27,6 @@ def insert_task(client: DatabaseManager, item: dict[str, Any]) -> list[dict[str,
     """
 
     insert_item = {
-        "id": item["task_id"],
         "label": item["label"],
         "period": item["period"],
         "status": item["status"],

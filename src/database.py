@@ -117,7 +117,7 @@ class DatabaseManager:
                 condition_clause = self.__create_condition_clause(condition)
             # 結果の取得
             query = sql.SQL(
-                "DELETE FROM {table} {where_clause} {condition_clause} RETURNING *;"
+                "DELETE FROM {table} {condition_clause} RETURNING *;"
             ).format(
                 table=self.__create_table_indentifier(table),
                 condition_clause=condition_clause,
