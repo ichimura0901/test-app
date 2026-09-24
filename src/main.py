@@ -1,5 +1,5 @@
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Self
 from zoneinfo import ZoneInfo
@@ -35,12 +35,13 @@ class TaskStatus(Enum):
         self.label = label
 
     @classmethod
-    def get_by_code(cls, code: int) -> Self | None:
+    def get_by_code(cls, code: int) -> Self:
         """codeから一致するEnumオブジェクトを返す（見つからない場合はNone）"""
         for member in cls:
             if member.code == code:
                 return member
-        return None
+
+        raise RuntimeError("一致するタスク状態がありません")
 
 
 class Operation(Enum):
@@ -51,10 +52,10 @@ class Operation(Enum):
 class TodoTask:
     def __init__(
         self,
-        task_id: int | None,
+        task_id: int,
         label: str,
-        period: datetime | None,
-        status: TaskStatus | None,
+        period: datetime,
+        status: TaskStatus,
         note: str,
     ):
         self.task_id = task_id
@@ -106,7 +107,7 @@ def update_task(task_for_update: TodoTask) -> None:
             break
 
 
-def delete_task_by_index(row_index: int) -> TodoTask:
+def delete_task_by_index(row_index: int) -> None:
     """タスクを削除
 
     Args:
@@ -236,9 +237,17 @@ def render_edit_dialog(client: DbManager, row_index: int | None = None):
         row_index (int): 行のインデックス
     """
     is_new = bool(row_index is None)
-    task = (
-        TodoTask(None, "", None, None, "") if is_new else get_task_by_index(row_index)
-    )
+    if is_new:
+        task = TodoTask(
+            calculate_max_task_id(st.session_state.tasks, st.session_state.max_task_id)
+            + 1,
+            "",
+            datetime.now(timezone.utc),
+            TaskStatus.PENDING,
+            "",
+        )
+    elif row_index:
+        task = get_task_by_index(row_index)
 
     with st.form("detail_form"):
         label_error = st.empty()
@@ -410,17 +419,20 @@ def render(client: DbManager):
 
 
 def main():
-    # DB接続
-    client = connect_db()
+    try:
+        # DB接続
+        client = connect_db()
 
-    # データ取得
-    if "tasks" not in st.session_state:
-        st.session_state.tasks = fetch_data(client)
-        set_max_task_id(calculate_max_task_id(st.session_state.tasks))
-        init_schedule_operation_index()
+        # データ取得
+        if "tasks" not in st.session_state:
+            st.session_state.tasks = fetch_data(client)
+            set_max_task_id(calculate_max_task_id(st.session_state.tasks))
+            init_schedule_operation_index()
 
-    # 画面描画
-    render(client)
+        # 画面描画
+        render(client)
+    except Exception:
+        st.write("エラー")
 
 
 main()

@@ -1,16 +1,19 @@
 {
+    "ruff.configuration": "/app/.vscode/pyproject.toml",
+    "ruff.path": [
+        "/usr/local/bin/ruff"
+    ],
     "[python]": {
         "editor.formatOnSave": true,
         // Pythonファイルを保存する際に自動でフォーマットします。
-
         "editor.codeActionsOnSave": {
             "source.fixAll": "explicit",
             "source.organizeImports": "explicit"
         },
         // Pythonファイルを保存するときに、すべての問題を修正し、インポートを整理します。
-
         "editor.defaultFormatter": "charliermarsh.ruff"
         // PythonコードのデフォルトフォーマッターとしてRuffを使用します。
     },
     "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python.analysis.typeCheckingMode": "basic",
 }

@@ -1,15 +1,18 @@
 {
-    // IntelliSense を使用して利用可能な属性を学べます。
-    // 既存の属性の説明をホバーして表示します。
-    // 詳細情報は次を確認してください: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
             "name": "Python: Streamlit",
             "type": "debugpy",
             "request": "launch",
-            "program": "/usr/local/lib/python3.11/site-packages/streamlit",
-            "args": ["run", "${workspaceFolder}/src/main.py"],
+            "module": "streamlit",
+            "args": [
+                "run",
+                "${workspaceFolder}/src/main.py",
+                "--server.port=8502",
+                "--server.headless=true",
+                "--server.runOnSave=true"
+            ],
             "console": "integratedTerminal",
             "justMyCode": true
         }

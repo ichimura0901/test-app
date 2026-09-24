@@ -22,4 +22,8 @@ RUN apt-get update && \
 
 # Gitにとって安全なディレクトリに設定
 RUN git config --global --add safe.directory /app
+
+#ruffのインストール
+RUN pip install ruff
+
 COPY . .
