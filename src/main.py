@@ -68,7 +68,7 @@ class TodoTask:
             "task_id": self.task_id,
             "label": self.label,
             "period": self.period,
-            "status": self.status,
+            "status": self.status.code,
             "note": self.note,
         }
 
@@ -208,10 +208,13 @@ def create_data_frame(tasks: list[TodoTask]) -> dict[str, list[Any]]:
         TaskFrameColumn.EDIT.value: [],
         TaskFrameColumn.DELETE.value: [],
     }
+
     for task in tasks:
         data[TaskFrameColumn.LABEL.value].append(task.label)
         data[TaskFrameColumn.PERIOD.value].append(
-            task.period.strftime("%Y/%m/%d %H:%M") if task.period else ""
+            task.period.astimezone(JST_TZINFO).strftime("%Y/%m/%d %H:%M")
+            if task.period
+            else ""
         )
         data[TaskFrameColumn.STATUS.value].append(
             task.status.label if task.status else ""
@@ -229,6 +232,7 @@ def render_edit_dialog(client: DbManager, row_index: int | None = None):
     """編集ダイアログ描画
 
     Args:
+        client (DbManager): DBクライアント
         row_index (int): 行のインデックス
     """
     is_new = bool(row_index is None)
@@ -241,7 +245,11 @@ def render_edit_dialog(client: DbManager, row_index: int | None = None):
         label = st.text_input("タスク名", value=task.label if task.label else "")
         date_column, time_column = st.columns([2, 1])
 
-        period = task.period if task.period else datetime.now(JST_TZINFO)
+        period = (
+            task.period.astimezone(JST_TZINFO)
+            if task.period
+            else datetime.now(JST_TZINFO)
+        )
         with date_column:
             input_date = st.date_input("期限", value=period.date())
 
@@ -278,13 +286,20 @@ def render_edit_dialog(client: DbManager, row_index: int | None = None):
                             )
                             + 1
                         )
-                        append_task(task)
-                        repository.insert_task(client, task.to_json())
-                        set_max_task_id(task.task_id)
+                        result = repository.insert_task(client, task.to_json())
+                        if result:
+                            append_task(task)
+                            set_max_task_id(task.task_id)
                     else:
-                        update_task(task)
-                    init_schedule_operation_index()
-                    st.rerun()
+                        result = repository.update_task(
+                            client, task.to_json(), task.task_id
+                        )
+                        if result:
+                            update_task(task)
+
+                    if result:
+                        init_schedule_operation_index()
+                        st.rerun()
 
         # キャンセル時のイベント
         with cancel_button:
@@ -294,10 +309,11 @@ def render_edit_dialog(client: DbManager, row_index: int | None = None):
 
 
 @st.dialog("削除")
-def render_delete_dialog(row_index: int):
+def render_delete_dialog(client: DbManager, row_index: int):
     """削除ダイアログ描画
 
     Args:
+        client (DbManager): DBクライアント
         row_index (int): 行のインデックス
     """
     with st.form("delete_form"):
@@ -307,9 +323,12 @@ def render_delete_dialog(row_index: int):
         # 削除時のイベント
         with ok_button:
             if st.form_submit_button("OK", width="stretch"):
-                delete_task_by_index(row_index)
-                init_schedule_operation_index()
-                st.rerun()
+                delete_task_id = get_task_by_index(row_index).task_id
+                result = repository.delete_task(client, delete_task_id)
+                if result:
+                    delete_task_by_index(row_index)
+                    init_schedule_operation_index()
+                    st.rerun()
 
         # キャンセル時のイベント
         with cancel_button:
@@ -387,7 +406,7 @@ def render(client: DbManager):
         if st.session_state.operation.value == Operation.EDIT.value:
             render_edit_dialog(client, row_index)
         elif st.session_state.operation.value == Operation.DELETE.value:
-            render_delete_dialog(row_index)
+            render_delete_dialog(client, row_index)
 
 
 def main():
