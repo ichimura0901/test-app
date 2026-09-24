@@ -1,3 +1,5 @@
+"""DB接続、汎用的なCRUDのベース関数."""
+
 import os
 import traceback
 from datetime import datetime, timezone
@@ -12,10 +14,14 @@ from psycopg2.sql import Identifier
 
 
 class DatabaseManager:
+    """DBマネージャクラス."""
+
     def __init__(self):
+        """インスタンス初期化."""
         self._conn = None
 
     def connect(self):
+        """DB接続."""
         load_dotenv()
         self._conn = psycopg2.connect(
             host=os.getenv("POSTGRES_HOST"),
@@ -27,17 +33,21 @@ class DatabaseManager:
 
     @property
     def conn(self) -> psycopg2.extensions.connection:
-        """接続オブジェクトを安全に取得するためのプロパティ。
-
-        未接続（None）の場合はエラーを投げ、型チェッカーに「絶対に None を返さない」ことを伝えます。
-        """
+        """接続オブジェクトを安全に取得するためのプロパティ."""
         if self._conn is None:
-            raise RuntimeError(
-                "データベースに接続されていません。事前に connect() を呼び出してください。"
-            )
+            raise RuntimeError("データベースに接続されていません。")
         return self._conn
 
     def fetch_all(self, query: str) -> list[dict]:
+        """データ取得(SELECT).
+
+        Args:
+            query (str): クエリ
+
+        Returns:
+            list[dict]: 取得結果
+
+        """
         # データの取得
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query)
@@ -45,6 +55,16 @@ class DatabaseManager:
             return [dict(row) for row in results]
 
     def insert(self, table: str, data: dict[str, Any]) -> list[dict[str, Any]]:
+        """データ登録.
+
+        Args:
+            table (str): テーブル名
+            data (dict[str, Any]): 登録データ
+
+        Returns:
+            list[dict[str, Any]]: 登録後データ
+
+        """
         try:
             # データの取得
             columns = data.keys()
@@ -74,6 +94,17 @@ class DatabaseManager:
     def update(
         self, table: str, data: dict[str, Any], condition: dict[str, Any]
     ) -> list[dict[str, Any]]:
+        """データ更新.
+
+        Args:
+            table (str): テーブル名
+            data (dict[str, Any]): 更新データ
+            condition (dict[str, Any]): 更新条件
+
+        Returns:
+            list[dict[str, Any]]: 更新後データ
+
+        """
         try:
             update_data_all = data | {"updated_at": datetime.now(tz=timezone.utc)}
             condition_clause = sql.SQL("")
@@ -89,9 +120,7 @@ class DatabaseManager:
             )
 
             with self.conn.cursor() as cur:
-                cur.execute(
-                    query, tuple(update_data_all.values()) + tuple(condition.values())
-                )
+                cur.execute(query, tuple(update_data_all.values()) + tuple(condition.values()))
                 results = self.__fetch_all_as_dict(cur)
 
             # 変更を保存（コミット）
@@ -111,14 +140,22 @@ class DatabaseManager:
         return sql.SQL(", ").join(condition_querys)
 
     def delete(self, table: str, condition: dict[str, Any]) -> list[dict[str, Any]]:
+        """データ削除.
+
+        Args:
+            table (str): テーブル名
+            condition (dict[str, Any]): 削除条件
+
+        Returns:
+            list[dict[str, Any]]: 削除前データ
+
+        """
         try:
             condition_clause = sql.SQL("")
             if condition:
                 condition_clause = self.__create_condition_clause(condition)
             # 結果の取得
-            query = sql.SQL(
-                "DELETE FROM {table} {condition_clause} RETURNING *;"
-            ).format(
+            query = sql.SQL("DELETE FROM {table} {condition_clause} RETURNING *;").format(
                 table=self.__create_table_indentifier(table),
                 condition_clause=condition_clause,
             )
@@ -138,8 +175,7 @@ class DatabaseManager:
 
     def __create_condition_clause(self, condition: dict[str, Any]) -> sql.Composed:
         condition_querys = [
-            sql.SQL("{}={}").format(sql.Identifier(k), sql.Placeholder())
-            for k in condition
+            sql.SQL("{}={}").format(sql.Identifier(k), sql.Placeholder()) for k in condition
         ]
 
         return sql.Composed([sql.SQL("WHERE"), sql.SQL(" AND ").join(condition_querys)])

@@ -1,2 +1,7 @@
 [tool.ruff.lint]
 ignore = ["BLE001"]
+select = ["E", "F", "D"]
+
+[tool.ruff]
+# 1行の最大文字数（必要に応じて調整）
+line-length = 100

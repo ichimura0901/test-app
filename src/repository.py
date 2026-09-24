@@ -1,22 +1,25 @@
+"""特定のテーブル（モデル）に依存した具体的な操作."""
+
 from typing import Any
 
 from database import DatabaseManager
 
 
 def get_task(client: DatabaseManager) -> list[dict[str, Any]]:
-    """DatabaseManager
+    """タスク一覧の取得.
 
     Args:
         client (DatabaseManager): クライアント
 
     Returns:
         list[dict]: タスク一覧
+
     """
     return client.fetch_all("SELECT * FROM app_db.todo_task ORDER BY id")
 
 
 def insert_task(client: DatabaseManager, item: dict[str, Any]) -> list[dict[str, Any]]:
-    """タスクの追加
+    """タスクの追加.
 
     Args:
         client (DatabaseManager): クライアント
@@ -24,8 +27,8 @@ def insert_task(client: DatabaseManager, item: dict[str, Any]) -> list[dict[str,
 
     Returns:
         list[dict[str, Any]]: タスク一覧
-    """
 
+    """
     insert_item = {
         "label": item["label"],
         "period": item["period"],
@@ -38,7 +41,7 @@ def insert_task(client: DatabaseManager, item: dict[str, Any]) -> list[dict[str,
 def update_task(
     client: DatabaseManager, item: dict[str, Any], task_id: int
 ) -> list[dict[str, Any]]:
-    """タスクの追加
+    """タスクの更新.
 
     Args:
         client (DatabaseManager): クライアント
@@ -47,8 +50,8 @@ def update_task(
 
     Returns:
         list[dict[str, Any]]: タスク一覧
-    """
 
+    """
     update_item = {
         "label": item["label"],
         "period": item["period"],
@@ -59,7 +62,7 @@ def update_task(
 
 
 def delete_task(client: DatabaseManager, task_id: int) -> list[dict[str, Any]]:
-    """DatabaseManager
+    """タスクの削除.
 
     Args:
         client (DatabaseManager): クライアント
@@ -67,7 +70,7 @@ def delete_task(client: DatabaseManager, task_id: int) -> list[dict[str, Any]]:
 
     Returns:
         list[dict[str, Any]]: タスク一覧
-    """
 
+    """
     condition = {"id": task_id}
     return client.delete("app_db.todo_task", condition)

@@ -1,3 +1,5 @@
+"""ToDoアプリのメインロジック."""
+
 from copy import deepcopy
 from datetime import datetime, timezone
 from enum import Enum
@@ -12,6 +14,8 @@ from database import DatabaseManager as DbManager
 
 
 class TaskFrameColumn(Enum):
+    """タスク一覧の列名."""
+
     LABEL = "タスク"
     PERIOD = "期限"
     STATUS = "ステータス"
@@ -27,17 +31,37 @@ JST_TZINFO = ZoneInfo("Asia/Tokyo")
 
 
 class TaskStatus(Enum):
+    """タスク状態."""
+
     PENDING = (1, "未対応")
     INPROGRESS = (2, "対応中")
     COMPLETE = (3, "完了")
 
     def __init__(self, code: int, label: str):
+        """インスタンス初期化.
+
+        Args:
+            code (int): タスク状態コード
+            label (str): タスク状態名
+
+        """
         self.code = code
         self.label = label
 
     @classmethod
     def get_by_code(cls, code: int) -> Self:
-        """codeから一致するEnumオブジェクトを返す（見つからない場合はNone）"""
+        """codeから一致するタスク状態を返す.
+
+        Args:
+            code (int): タスク状態コード
+
+        Raises:
+            RuntimeError: タスク状態コードが存在しない
+
+        Returns:
+            Self: タスク状態
+
+        """
         for member in cls:
             if member.code == code:
                 return member
@@ -46,11 +70,15 @@ class TaskStatus(Enum):
 
 
 class Operation(Enum):
+    """操作状態."""
+
     EDIT = 1
     DELETE = 2
 
 
 class TodoTaskCreate:
+    """新規作成時のToDoタスクオブジェクト."""
+
     def __init__(
         self,
         label: str,
@@ -58,12 +86,27 @@ class TodoTaskCreate:
         status: TaskStatus,
         note: str,
     ):
+        """インスタンス初期化.
+
+        Args:
+            label (str): タスク名
+            period (datetime): 有効期限
+            status (TaskStatus): タスク状態
+            note (str): メモ
+
+        """
         self.label = label
         self.period = period
         self.status = status
         self.note = note
 
     def to_json(self):
+        """JSON化.
+
+        Returns:
+            dict[str, Any]: JSON化後のオブジェクト
+
+        """
         return {
             "label": self.label,
             "period": self.period,
@@ -73,6 +116,8 @@ class TodoTaskCreate:
 
 
 class TodoTask:
+    """登録後のToDoタスクオブジェクト."""
+
     def __init__(
         self,
         task_id: int,
@@ -81,13 +126,29 @@ class TodoTask:
         status: TaskStatus,
         note: str,
     ):
+        """インスタンス初期化.
+
+        Args:
+            task_id (int): タスクID
+            label (str): タスク名
+            period (datetime): 有効期限
+            status (TaskStatus): タスク状態
+            note (str): メモ
+
+        """
         self.task_id = task_id
         self.label = label
         self.period = period
         self.status = status
         self.note = note
 
-    def to_json(self):
+    def to_json(self) -> dict[str, Any]:
+        """JSON化.
+
+        Returns:
+            dict[str, Any]: JSON化後のオブジェクト
+
+        """
         return {
             "task_id": self.task_id,
             "label": self.label,
@@ -98,31 +159,34 @@ class TodoTask:
 
 
 def get_task_by_index(row_index: int) -> TodoTask:
-    """タスクの複製を取得
+    """タスクの複製を取得.
 
     Args:
         row_index (int): 行番号
 
     Returns:
         TodoTask: タスク
+
     """
     return deepcopy(st.session_state.tasks[row_index])
 
 
 def append_task(task_for_add: TodoTask):
-    """タスクを追加
+    """タスクを追加.
 
     Args:
         task_for_add (TodoTask): 追加用タスク
+
     """
     st.session_state.tasks.append(task_for_add)
 
 
 def update_task(task_for_update: TodoTask) -> None:
-    """タスクを更新
+    """タスクを更新.
 
     Args:
         task_for_update (TodoTask): 更新用タスク
+
     """
     for index, task in enumerate(st.session_state.tasks):
         if task.task_id == task_for_update.task_id:
@@ -131,37 +195,40 @@ def update_task(task_for_update: TodoTask) -> None:
 
 
 def delete_task_by_index(row_index: int) -> None:
-    """タスクを削除
+    """タスクを削除.
 
     Args:
         row_index (int): 行番号
+
     """
     del st.session_state.tasks[row_index]
 
 
 def set_schedule_operation(row_index: int | None, operaion: Operation | None) -> None:
-    """操作予定の行番号を設定
+    """操作予定の行番号を設定.
 
     Args:
         row_index (int | None): 行番号
         operaion (Operation | None): 操作
+
     """
     st.session_state.operation_row_index = row_index
     st.session_state.operation = operaion
 
 
 def init_schedule_operation_index() -> None:
-    """操作予定の行番号をリセット"""
+    """操作予定の行番号をリセット."""
     st.session_state.operation_row_index = None
     st.session_state.operation = None
 
 
 @st.cache_resource
 def connect_db() -> DbManager:
-    """DB接続
+    """DB接続.
 
     Returns:
         DbManager: DBクライアント
+
     """
     client = DbManager()
     client.connect()
@@ -169,14 +236,15 @@ def connect_db() -> DbManager:
 
 
 def fetch_data(client: DbManager) -> list[TodoTask]:
-    """タスク一覧を取得
+    """タスク一覧を取得.
+
     Args:
         client (DbManager): DBクライアント
 
     Returns:
         list[TodoTask]: タスク一覧
-    """
 
+    """
     stored_tasks = repository.get_task(client)
 
     tasks: list[TodoTask] = []
@@ -194,13 +262,14 @@ def fetch_data(client: DbManager) -> list[TodoTask]:
 
 
 def create_data_frame(tasks: list[TodoTask]) -> dict[str, list[Any]]:
-    """データフレーム辞書作成
+    """データフレーム辞書作成.
 
     Args:
         tasks (list[TodoTask]): タスク一覧
 
     Returns:
         dict[str, Any]: データフレーム辞書
+
     """
     data: dict[str, list[Any]] = {
         TaskFrameColumn.LABEL.value: [],
@@ -230,11 +299,12 @@ def create_data_frame(tasks: list[TodoTask]) -> dict[str, list[Any]]:
 
 @st.dialog("編集")
 def render_edit_dialog(client: DbManager, row_index: int | None = None):
-    """編集ダイアログ描画
+    """編集ダイアログ描画.
 
     Args:
         client (DbManager): DBクライアント
         row_index (int): 行のインデックス
+
     """
     if row_index is None:
         task = TodoTaskCreate(
@@ -320,11 +390,12 @@ def render_edit_dialog(client: DbManager, row_index: int | None = None):
 
 @st.dialog("削除")
 def render_delete_dialog(client: DbManager, row_index: int):
-    """削除ダイアログ描画
+    """削除ダイアログ描画.
 
     Args:
         client (DbManager): DBクライアント
         row_index (int): 行のインデックス
+
     """
     with st.form("delete_form"):
         st.write("削除しますか？")
@@ -348,25 +419,26 @@ def render_delete_dialog(client: DbManager, row_index: int):
 
 
 def edit_action():
-    """編集ボタン押下時のイベント"""
+    """編集ボタン押下時のイベント."""
     click = st.session_state.edit_buttons
     set_schedule_operation(click["row"], Operation.EDIT)
 
 
 def delete_action():
-    """削除ボタン押下時のイベント"""
+    """削除ボタン押下時のイベント."""
     click = st.session_state.delete_buttons
     set_schedule_operation(click["row"], Operation.DELETE)
 
 
 def create_status_selectbox(status: TaskStatus | None) -> TaskStatus:
-    """ステータスのプルダウン作成
+    """ステータスのプルダウン作成.
 
     Args:
         status (TaskStatus | None): ステータス
 
     Returns:
         TaskStatus: 選択中のステータスの値
+
     """
 
     def render_status(status: TaskStatus | None):
@@ -387,7 +459,7 @@ def create_status_selectbox(status: TaskStatus | None) -> TaskStatus:
 
 
 def render(client: DbManager):
-    """画面の描画"""
+    """画面の描画."""
     st.title("TODOアプリ")
     _, col2 = st.columns([4, 1])
     with col2:
@@ -420,6 +492,7 @@ def render(client: DbManager):
 
 
 def main():
+    """メイン関数."""
     try:
         # DB接続
         client = connect_db()
