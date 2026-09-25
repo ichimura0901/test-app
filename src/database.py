@@ -23,13 +23,16 @@ class DatabaseManager:
     def connect(self):
         """DB接続."""
         load_dotenv()
-        self._conn = psycopg2.connect(
-            host=os.getenv("POSTGRES_HOST"),
-            port=os.getenv("POSTGRES_PORT"),
-            database=os.getenv("POSTGRES_DB"),
-            user=os.getenv("POSTGRES_USER"),
-            password=os.getenv("POSTGRES_PASSWORD"),
-        )
+        if os.getenv("DATABASE_URL"):
+            self._conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+        else:
+            self._conn = psycopg2.connect(
+                host=os.getenv("POSTGRES_HOST"),
+                port=os.getenv("POSTGRES_PORT"),
+                database=os.getenv("POSTGRES_DB"),
+                user=os.getenv("POSTGRES_USER"),
+                password=os.getenv("POSTGRES_PASSWORD"),
+            )
 
     @property
     def conn(self) -> psycopg2.extensions.connection:
