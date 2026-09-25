@@ -5,6 +5,7 @@ services:
     build:
       context: ../
       dockerfile: .devcontainer/Dockerfile
+      target: development
     depends_on:
       - postgres
     env_file:

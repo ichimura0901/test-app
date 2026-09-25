@@ -7,10 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Streamlitのデフォルトポート（8501）を開放
 EXPOSE 8501
 
-# 本番用ステージ
-FROM base AS production
-COPY . .
-
 # 開発用ステージ
 FROM base AS development
 #Gitのインストール
@@ -27,3 +23,8 @@ RUN git config --global --add safe.directory /app
 RUN pip install ruff
 
 COPY . .
+
+# 本番用ステージ
+FROM base AS production
+COPY . .
+ENTRYPOINT ["streamlit", "run", "src/main.py", "--server.address", "0.0.0.0", "--server.port", "8501"]
